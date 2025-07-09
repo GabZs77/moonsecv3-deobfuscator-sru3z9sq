@@ -1,15 +1,132 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>MoonsecV3 Deobfuscator</title>
-    <!-- CRITICAL: DO NOT REMOVE/MODIFY THIS COMMENT OR THE SCRIPT BELOW -->
-    <script src="https://blink.new/auto-engineer.js?projectId=moonsecv3-deobfuscator-sru3z9sq" type="module"></script>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
-</html> 
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Deobfuscador de Script</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #1e1e1e;
+            color: #f0f0f0;
+            padding: 40px;
+        }
+        .container {
+            max-width: 600px;
+            margin: auto;
+            background: #2e2e2e;
+            padding: 20px;
+            border-radius: 8px;
+        }
+        input, button {
+            width: 100%;
+            margin: 10px 0;
+            padding: 10px;
+            font-size: 16px;
+            background: #444;
+            color: white;
+            border: none;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>🔓 Deobfuscador de Script Lua</h1>
+    <input type="file" id="fileInput" accept=".lua,.txt">
+    <button onclick="deobfuscate()">Deobfuscar e Baixar</button>
+    <p id="status"></p>
+</div>
+
+<script>
+    const charset = 'QWERTYUIOPASDFGHJKLZXCVBNMplmoknijbuhvygctfxrdzesawq1234567890+/';
+
+    function fromBase64Custom(str) {
+        str = str.replace(/[^A-Za-z0-9+/]/g, '');
+        let bin = '';
+        for (let i = 0; i < str.length; i++) {
+            let index = charset.indexOf(str[i]);
+            if (index < 0) continue;
+            bin += index.toString(2).padStart(6, '0');
+        }
+        let result = '';
+        for (let i = 0; i < bin.length; i += 8) {
+            let byte = bin.slice(i, i + 8);
+            if (byte.length === 8) {
+                result += String.fromCharCode(parseInt(byte, 2));
+            }
+        }
+        return result;
+    }
+
+    function xorDecode(str, key) {
+        let result = '';
+        for (let i = 0; i < str.length; i++) {
+            result += String.fromCharCode(str.charCodeAt(i) ^ key.charCodeAt(i % key.length));
+        }
+        return result;
+    }
+
+    function reverse(str) {
+        return str.split('').reverse().join('');
+    }
+
+    function extractLayer(code) {
+        const encodedMatch = code.match(/decodeFunc\}.'([A-Za-z0-9+/=]+)'/s) ||
+                             code.match(/decodeFunc\}\(\s*'([A-Za-z0-9+/=]+)'\s*\)/);
+        const xorKeyMatch = code.match(/['"]([a-z0-9]{5,})['"]\)/i);
+        if (!encodedMatch || !xorKeyMatch) return null;
+        return {
+            encoded: encodedMatch[1],
+            xorKey: xorKeyMatch[1]
+        };
+    }
+
+    function recursiveDeobfuscate(payload) {
+        let content = payload;
+        const maxDepth = 20;
+        for (let i = 0; i < maxDepth; i++) {
+            const layer = extractLayer(content);
+            if (!layer) break;
+            const decoded = fromBase64Custom(layer.encoded);
+            const reversed = reverse(decoded);
+            const xored = xorDecode(reversed, layer.xorKey);
+            content = xored;
+        }
+        return content;
+    }
+
+    function deobfuscate() {
+        const fileInput = document.getElementById('fileInput');
+        const status = document.getElementById('status');
+
+        if (!fileInput.files.length) {
+            alert("Selecione um arquivo ofuscado primeiro!");
+            return;
+        }
+
+        const file = fileInput.files[0];
+        const reader = new FileReader();
+
+        reader.onload = function(e) {
+            try {
+                const content = e.target.result;
+                const deobfuscated = recursiveDeobfuscate(content);
+
+                const blob = new Blob([deobfuscated], { type: 'text/plain' });
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = file.name.replace(/_obfuscated\.lua|\.txt|\.lua/, '') + '_deobfuscated.lua';
+                a.click();
+
+                status.textContent = "✅ Script deobfuscado com sucesso!";
+            } catch (err) {
+                status.textContent = "❌ Erro ao deobfuscar: " + err.message;
+            }
+        };
+
+        reader.readAsText(file);
+    }
+</script>
+
+</body>
+</html>
